@@ -1,39 +1,29 @@
 """
-Константы и настройки приложения.
+Константы приложения переназначения клавиш.
 """
 
-# Константы путей
+import os
+
+# Пути и файлы
 CONFIG_FILE = "key_config.json"
 BACKUP_DIR = "backups"
-DEFAULT_TARGET_PROCESS = "browser.exe"
+
+# Значения по умолчанию
+DEFAULT_TARGET_PROCESS = "Yandex"
 DEFAULT_PROFILE = "default"
 
-# Windows API для определения активного окна
+# Интервалы проверок (секунды)
+PROCESS_CHECK_INTERVAL = 0.1
+PROCESS_MONITOR_INTERVAL = 0.2
+
+# Проверка доступности Windows API
 try:
     import win32gui
     import win32process
     import psutil
-
     WINDOWS_API_AVAILABLE = True
 except ImportError:
     WINDOWS_API_AVAILABLE = False
-
-# Настройки производительности
-PROCESS_CHECK_INTERVAL = 0.1  # секунды
-PROCESS_MONITOR_INTERVAL = 0.2  # секунды
-
-# Поддерживаемые специальные клавиши
-SPECIAL_KEYS = [
-    'space', 'enter', 'tab', 'backspace', 'delete', 'esc', 'escape',
-    'up', 'down', 'left', 'right', 'home', 'end', 'page up', 'page down',
-    'insert', 'print screen', 'scroll lock', 'pause', 'caps lock',
-    'num lock', 'num 0', 'num 1', 'num 2', 'num 3', 'num 4', 'num 5',
-    'num 6', 'num 7', 'num 8', 'num 9', 'num +', 'num -', 'num *', 'num /', 'num enter',
-    'shift', 'ctrl', 'alt', 'win', 'menu'
-]
-
-# Модификаторы клавиш
-KEY_MODIFIERS = ['ctrl', 'alt', 'shift', 'win']
 
 # Категории символов
 SYMBOL_CATEGORIES = {
@@ -84,7 +74,7 @@ SYMBOL_CATEGORIES = {
             ('middle_dot', '·', 'Средняя точка'),
             ('ellipsis', '…', 'Многоточие'),
             ('em_dash', '—', 'Длинное тире'),
-            ('en_dash', '–', 'Короткое тире')
+            ('en_dash', '—', 'Короткое тире')
         ]
     },
     '4': {
@@ -130,37 +120,67 @@ CURRENCIES = [
     ('som', 'Soʻm', 'Сумы')
 ]
 
-# ASCII символы
-ASCII_SYMBOLS = {
-    # Математические
-    'plus': '+', 'minus': '-', 'multiply': '*', 'divide': '/',
-    'equals': '=', 'not_equal': '≠', 'less_equal': '≤', 'greater_equal': '≥',
-    'approx': '≈', 'plus_minus': '±', 'infinity': '∞', 'pi': 'π',
-    'sum': '∑', 'integral': '∫',
-    # Стрелки
-    'arrow_left': '←', 'arrow_right': '→', 'arrow_up': '↑', 'arrow_down': '↓',
-    'arrow_both': '↔', 'arrow_double_left': '«', 'arrow_double_right': '»',
-    # Специальные
-    'copyright': '©', 'registered': '®', 'trademark': '™', 'degree': '°',
-    'section': '§', 'paragraph': '¶', 'bullet': '•', 'middle_dot': '·',
-    'ellipsis': '…', 'em_dash': '—', 'en_dash': '–',
-    # Кавычки
-    'quote_left': '"', 'quote_right': '"',
-    'quote_single_left': "'", 'quote_single_right': "'",
-    # Другие
-    'euro': '€', 'pound': '£', 'yen': '¥', 'cent': '¢',
-    'check': '✓', 'cross': '✗', 'star': '★', 'heart': '♥',
-    'diamond': '♦', 'club': '♣', 'spade': '♠'
+# Новые возможности
+FEATURE_FLAGS = {
+    'AUTO_START': True,
+    'QUICK_PROFILES': True,
+    'MACRO_RECORDING': True,
+    'PROCESS_FILTERS': True,
+    'BACKUP_MANAGEMENT': True
 }
 
-# Символы валют
-CURRENCY_SYMBOLS = {
-    'ruble': '₽', 'tenge': '₸', 'dram': '֏', 'Soʻm': 'Сумы'
+# Быстрые профили
+QUICK_PROFILES = {
+    'web_browser': {
+        'name': 'Веб-браузер',
+        'target_process': 'chrome.exe',
+        'preset_mappings': {
+            'ctrl+t': '"Новая вкладка"',
+            'ctrl+w': '"Закрыть вкладку"',
+            'ctrl+shift+t': '"Восстановить вкладку"',
+            'f5': '"Обновить страницу"'
+        }
+    },
+    'text_editor': {
+        'name': 'Текстовый редактор',
+        'target_process': 'notepad.exe',
+        'preset_mappings': {
+            'ctrl+s': '"Сохранить документ"',
+            'ctrl+b': 'symbol:bullet',
+            'f12': '"Вставка даты"'
+        }
+    },
+    'code_editor': {
+        'name': 'Редактор кода',
+        'target_process': 'code.exe',
+        'preset_mappings': {
+            'ctrl+shift+`': '"Открыть терминал"',
+            'f5': '"Запуск отладки"',
+            'ctrl+shift+f': '"Поиск по проекту"'
+        }
+    }
 }
 
-# Названия месяцев для форматирования даты
-MONTHS = {
-    1: "января", 2: "февраля", 3: "марта", 4: "апреля",
-    5: "мая", 6: "июня", 7: "июля", 8: "августа",
-    9: "сентября", 10: "октября", 11: "ноября", 12: "декабря"
+# Макросы
+DEFAULT_MACROS = {
+    'email_signature': {
+        'name': 'Подпись email',
+        'text': 'С уважением,\n[Ваше Имя]\n[Ваша Должность]'
+    },
+    'current_datetime': {
+        'name': 'Текущие дата и время',
+        'action': 'datetime'
+    },
+    'separator': {
+        'name': 'Разделитель',
+        'text': '---'
+    }
+}
+
+# Расширенные настройки
+ADVANCED_SETTINGS = {
+    'typing_delay': 0.01,
+    'clipboard_timeout': 0.05,
+    'process_check_frequency': 0.1,
+    'max_backup_files': 10
 }

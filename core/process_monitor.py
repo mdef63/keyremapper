@@ -1,68 +1,28 @@
 """
-Мониторинг активных процессов Windows.
+Мониторинг процессов для приложения переназначения клавиш.
 """
-import threading
+
 import time
+import threading
 from typing import Optional
+
 from constants import WINDOWS_API_AVAILABLE, PROCESS_MONITOR_INTERVAL
 
 
 class ProcessMonitor:
-    """Мониторинг активных процессов Windows."""
+    """Мониторинг активного процесса."""
 
-    def __init__(self, target_process: str):
-        self.target_process = target_process
-        self.current_process: Optional[str] = None
-        self.is_target_active = False
-        self.monitor_running = False
-        self.monitor_thread: Optional[threading.Thread] = None
+    def __init__(self):
         self._process_cache = None
         self._last_process_check = 0
-        self._process_check_interval = 0.1
-
-    def start_monitoring(self):
-        """Запускает фоновый мониторинг процессов."""
-        if self.monitor_running:
-            return
-
-        self.monitor_running = True
-        self.monitor_thread = threading.Thread(
-            target=self._monitor_worker,
-            daemon=True,
-            name="ProcessMonitor"
-        )
-        self.monitor_thread.start()
-
-    def stop_monitoring(self):
-        """Останавливает мониторинг процессов."""
+        self.current_process_info = "Не определен"
+        self.process_match_status = "❌"
+        self.last_active_process = None
         self.monitor_running = False
-        if self.monitor_thread:
-            self.monitor_thread.join(timeout=1.0)
-            self.monitor_thread = None
+        self.process_monitor_thread = None
 
-    def _monitor_worker(self):
-        """Фоновый поток для мониторинга изменений процесса."""
-        while self.monitor_running:
-            try:
-                current_process = self._get_active_window_process()
-
-                # Обновляем информацию о процессе
-                self.current_process = current_process
-                self.is_target_active = self._is_target_process_active(use_cache=False)
-
-                time.sleep(PROCESS_MONITOR_INTERVAL)
-
-            except Exception as e:
-                print(f"Process monitor error: {e}")
-                time.sleep(1.0)
-
-    def _get_active_window_process(self) -> Optional[str]:
-        """
-        Получает имя процесса активного окна.
-
-        Returns:
-            Имя процесса или None при ошибке
-        """
+    def get_active_window_process(self) -> Optional[str]:
+        """Получить имя процесса активного окна."""
         if not WINDOWS_API_AVAILABLE:
             return None
 
@@ -71,51 +31,34 @@ class ProcessMonitor:
             import win32process
             import psutil
 
-            # Получаем handle активного окна
             hwnd = win32gui.GetForegroundWindow()
             if hwnd == 0:
                 return None
 
-            # Получаем ID процесса
             _, pid = win32process.GetWindowThreadProcessId(hwnd)
-
-            # Получаем имя процесса
             process = psutil.Process(pid)
             return process.name()
-
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            return None
-        except Exception:
+        except (psutil.NoSuchProcess, psutil.AccessDenied, Exception):
             return None
 
-    def _is_target_process_active(self, use_cache: bool = True) -> bool:
-        """
-        Проверяет, является ли активное окно целевым процессом.
-
-        Args:
-            use_cache: Использовать кэшированный результат
-
-        Returns:
-            True если активный процесс соответствует целевому
-        """
+    def is_target_process_active(self, target_process: str, use_cache: bool = True) -> bool:
+        """Проверка, является ли активное окно целевым процессом."""
         if not WINDOWS_API_AVAILABLE:
-            return True  # Fallback если Windows API недоступно
+            return True
 
-        # Используем кэш для оптимизации
         current_time = time.time()
-        if (use_cache and self._process_cache is not None and
-            (current_time - self._last_process_check) < self._process_check_interval):
+        if use_cache and self._process_cache is not None and \
+                (current_time - self._last_process_check) < 0.1:  # PROCESS_CHECK_INTERVAL
             return self._process_cache
 
-        active_process = self._get_active_window_process()
+        active_process = self.get_active_window_process()
         if active_process is None:
             self._process_cache = False
             self._last_process_check = current_time
             return False
 
-        # Гибкое сравнение процессов
         active_lower = active_process.lower()
-        target_lower = self.target_process.lower()
+        target_lower = target_process.lower()
 
         result = (
             active_lower == target_lower or
@@ -125,82 +68,49 @@ class ProcessMonitor:
             active_lower in target_lower
         )
 
-        # Обновляем кэш
         self._process_cache = result
         self._last_process_check = current_time
-
         return result
 
-    def get_current_process_display(self) -> str:
-        """
-        Получает отформатированную информацию о текущем процессе для отображения.
+    def start_monitoring(self) -> None:
+        """Запуск фонового мониторинга процессов."""
+        if self.monitor_running:
+            return
 
-        Returns:
-            Строка с информацией о процессе
-        """
-        if not WINDOWS_API_AVAILABLE:
-            return "Определение процесса недоступно"
+        self.monitor_running = True
+        self.process_monitor_thread = threading.Thread(
+            target=self._monitor_worker,
+            daemon=True
+        )
+        self.process_monitor_thread.start()
 
-        status_icon = "✅" if self.is_target_active else "❌"
-        process_name = self.current_process or "Не определен"
-        return f"{status_icon} {process_name}"
+    def stop_monitoring(self) -> None:
+        """Остановка мониторинга процессов."""
+        self.monitor_running = False
+        if self.process_monitor_thread:
+            self.process_monitor_thread.join(timeout=1.0)
+            self.process_monitor_thread = None
 
-    def get_detailed_status(self) -> dict:
-        """
-        Получает детальную информацию о статусе процесса.
+    def _monitor_worker(self) -> None:
+        """Фоновый поток для мониторинга изменений процесса."""
+        while self.monitor_running:
+            try:
+                current_process = self.get_active_window_process()
 
-        Returns:
-            Словарь с детальной информацией
-        """
-        return {
-            'current_process': self.current_process,
-            'target_process': self.target_process,
-            'is_target_active': self.is_target_active,
-            'monitor_running': self.monitor_running
-        }
+                if current_process:
+                    self.current_process_info = current_process
+                    # Note: target_process is passed from outside when checking
+                    # We update the display but the actual check is done in the remapper
+                    self.process_match_status = "❌"  # Default, will be updated by remapper
+                else:
+                    self.current_process_info = "Не определен"
+                    self.process_match_status = "❌"
 
-    def update_target_process(self, new_target: str):
-        """
-        Обновляет целевой процесс.
+                if current_process != self.last_active_process:
+                    self.last_active_process = current_process
+                    self._process_cache = None  # Reset cache on process change
 
-        Args:
-            new_target: Новый целевой процесс
-        """
-        self.target_process = new_target
-        # Сбрасываем кэш при изменении целевого процесса
-        self._process_cache = None
-
-    def get_running_processes(self, filter_term: str = "") -> list:
-        """
-        Получает список запущенных процессов.
-
-        Args:
-            filter_term: Фильтр для поиска процессов
-
-        Returns:
-            Список имен процессов
-        """
-        if not WINDOWS_API_AVAILABLE:
-            return []
-
-        try:
-            import psutil
-
-            processes = []
-            seen_names = set()
-
-            for proc in psutil.process_iter(['pid', 'name']):
-                try:
-                    proc_name = proc.info['name']
-                    if proc_name and proc_name not in seen_names:
-                        seen_names.add(proc_name)
-                        if not filter_term or filter_term.lower() in proc_name.lower():
-                            processes.append(proc_name)
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-
-            return sorted(processes)
-
-        except Exception as e:
-            print(f"⚠️  Ошибка при получении списка процессов: {e}")
-            return []
+                time.sleep(PROCESS_MONITOR_INTERVAL)
+            except Exception as e:
+                print(f"Process monitor error: {e}")
+                time.sleep(1.0)

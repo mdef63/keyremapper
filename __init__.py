@@ -1,6 +1,6 @@
 """
-Keyboard Remapper - Программа для переназначения клавиш клавиатуры.
+Keyboard Remapper - Утилита для переназначения клавиш.
 """
 
-__version__ = "2.0.0"
-__author__ = "mdefo63"
+__version__ = "1.0.0"
+__author__ = "mdef63"

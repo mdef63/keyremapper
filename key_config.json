@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "default": {
+      "mappings": {
+        "f2": "currency:som"
+      },
+      "target_process": "Yandex"
+    }
+  },
+  "current_profile": "default"
+}
