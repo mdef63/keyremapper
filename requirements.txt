@@ -1,0 +1,5 @@
+keyboard==0.13.5
+pyperclip==1.8.2
+pywin32==311
+psutil==5.9.6
+pyinstaller==6.16.0

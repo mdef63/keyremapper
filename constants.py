@@ -3,10 +3,25 @@
 """
 
 import os
+import sys
 
-# Пути и файлы
-CONFIG_FILE = "key_config.json"
-BACKUP_DIR = "backups"
+def get_base_path():
+    """Определяет базовый путь в зависимости от режима выполнения"""
+    if getattr(sys, 'frozen', False):
+        # Если запущено как EXE
+        return os.path.dirname(sys.executable)
+    else:
+        # Если запущено как скрипт
+        return os.path.dirname(os.path.abspath(__file__))
+
+BASE_DIR = get_base_path()
+
+# Обновленные пути
+CONFIG_FILE = os.path.join(BASE_DIR, "key_config.json")
+BACKUP_DIR = os.path.join(BASE_DIR, "backups")
+
+# Создаем папки если нужно
+os.makedirs(BACKUP_DIR, exist_ok=True)
 
 # Значения по умолчанию
 DEFAULT_TARGET_PROCESS = "browser.exe"
