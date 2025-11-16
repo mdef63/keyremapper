@@ -9,6 +9,8 @@ from typing import Dict, List, Optional
 from core.config_manager import ConfigManager
 from core.process_monitor import ProcessMonitor
 from core.action_executor import ActionExecutor
+from core.settings_manager import SettingsManager, AutoStartManager
+from utils.macro_manager import MacroManager
 
 
 class KeyboardRemapper:
@@ -24,6 +26,10 @@ class KeyboardRemapper:
         self.hotkeys = []
 
         self.load_config()
+
+        self.settings_manager = SettingsManager()
+        self.macro_manager = MacroManager(self.config_manager)
+        self.autostart_manager = AutoStartManager()
 
     def load_config(self) -> None:
         """Загрузка конфигурации из файла."""
@@ -197,3 +203,36 @@ class KeyboardRemapper:
         except Exception as e:
             print(f"❌ Ошибка создания резервной копии: {e}")
             return False
+
+    def get_macro_manager(self):
+        """Возвращает менеджер макросов."""
+        return self.macro_manager
+
+    def get_settings_manager(self):
+        """Возвращает менеджер настроек."""
+        return self.settings_manager
+
+    def execute_macro(self, macro_name: str) -> bool:
+        """Выполняет макрос."""
+        return self.macro_manager.execute_macro(macro_name, self.action_executor)
+
+    def create_macro_from_mapping(self, key: str, macro_name: str = None) -> bool:
+        """Создает макрос из существующего назначения."""
+        if key not in self.mappings:
+            return False
+
+        if not macro_name:
+            macro_name = f"macro_{key}"
+
+        action = self.mappings[key]
+        return self.macro_manager.create_macro(
+            name=macro_name,
+            action_type="action",
+            value=action,
+            description=f"Макрос из назначения {key}",
+            category="imported"
+        )
+
+    def import_all_mappings_to_macros(self) -> int:
+        """Импортирует все назначения в макросы."""
+        return self.macro_manager.import_macros_from_mappings(self.mappings)

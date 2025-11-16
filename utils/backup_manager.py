@@ -5,8 +5,9 @@
 import os
 import shutil
 import zipfile
+import json
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pathlib import Path
 
 from constants import BACKUP_DIR, CONFIG_FILE
@@ -35,6 +36,7 @@ class BackupManager:
             # Очистка старых резервных копий
             self._cleanup_old_backups()
 
+            print(f"✅ Резервная копия создана: {backup_file.name}")
             return str(backup_file)
         except Exception as e:
             print(f"⚠️  Не удалось создать резервную копию: {e}")
@@ -57,23 +59,41 @@ class BackupManager:
                         zipf.write(log_file, f"logs/{log_file.name}")
 
             self._cleanup_old_backups()
+            print(f"✅ ZIP-архив создан: {zip_path.name}")
             return str(zip_path)
         except Exception as e:
             print(f"❌ Ошибка создания zip-архива: {e}")
             return None
 
-    def list_backups(self) -> List[dict]:
+    def list_backups(self) -> List[Dict[str, Any]]:
         """Возвращает список резервных копий."""
         backups = []
         for backup_file in self.backup_dir.glob("*.json"):
-            stat = backup_file.stat()
-            backups.append({
-                'path': str(backup_file),
-                'name': backup_file.name,
-                'size': stat.st_size,
-                'created': datetime.fromtimestamp(stat.st_ctime),
-                'description': self._extract_description(backup_file.name)
-            })
+            try:
+                stat = backup_file.stat()
+                backups.append({
+                    'path': str(backup_file),
+                    'name': backup_file.name,
+                    'size': stat.st_size,
+                    'created': datetime.fromtimestamp(stat.st_ctime),
+                    'description': self._extract_description(backup_file.name)
+                })
+            except Exception:
+                continue
+
+        # Также добавляем ZIP архивы
+        for zip_file in self.backup_dir.glob("*.zip"):
+            try:
+                stat = zip_file.stat()
+                backups.append({
+                    'path': str(zip_file),
+                    'name': zip_file.name,
+                    'size': stat.st_size,
+                    'created': datetime.fromtimestamp(stat.st_ctime),
+                    'description': 'ZIP архив'
+                })
+            except Exception:
+                continue
 
         return sorted(backups, key=lambda x: x['created'], reverse=True)
 
@@ -81,7 +101,17 @@ class BackupManager:
         """Восстанавливает конфигурацию из резервной копии."""
         try:
             if not os.path.exists(backup_path):
+                print("❌ Файл резервной копии не найден")
                 return False
+
+            # Проверяем, что файл валидный JSON
+            if backup_path.endswith('.json'):
+                try:
+                    with open(backup_path, 'r', encoding='utf-8') as f:
+                        json.load(f)  # Проверяем валидность JSON
+                except json.JSONDecodeError:
+                    print("❌ Файл резервной копии поврежден")
+                    return False
 
             # Создаем резервную копию текущей конфигурации
             current_backup = self.create_backup("before_restore")
@@ -99,7 +129,11 @@ class BackupManager:
     def delete_backup(self, backup_path: str) -> bool:
         """Удаляет резервную копию."""
         try:
+            if not os.path.exists(backup_path):
+                return False
+
             os.remove(backup_path)
+            print(f"✅ Резервная копия удалена: {os.path.basename(backup_path)}")
             return True
         except Exception as e:
             print(f"❌ Ошибка удаления резервной копии: {e}")
@@ -107,18 +141,47 @@ class BackupManager:
 
     def _cleanup_old_backups(self) -> None:
         """Удаляет старые резервные копии."""
-        backups = self.list_backups()
-        if len(backups) > self.max_backups:
-            for backup in backups[self.max_backups:]:
-                try:
-                    os.remove(backup['path'])
-                except Exception:
-                    pass
+        try:
+            backups = self.list_backups()
+            if len(backups) > self.max_backups:
+                backups_to_delete = backups[self.max_backups:]
+                for backup in backups_to_delete:
+                    try:
+                        os.remove(backup['path'])
+                        print(f"🗑️  Удалена старая резервная копия: {backup['name']}")
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"⚠️  Ошибка при очистке старых резервных копий: {e}")
 
     def _extract_description(self, filename: str) -> str:
         """Извлекает описание из имени файла."""
-        if '_' in filename:
-            parts = filename.split('_')
-            if len(parts) > 3:
-                return parts[3].replace('.json', '')
-        return ""
+        try:
+            if '_' in filename:
+                parts = filename.split('_')
+                if len(parts) > 3:
+                    description = parts[3].replace('.json', '').replace('.zip', '')
+                    return description if description else "Без описания"
+            return "Без описания"
+        except Exception:
+            return "Без описания"
+
+    def get_backup_info(self, backup_path: str) -> Optional[Dict[str, Any]]:
+        """Получает информацию о резервной копии."""
+        try:
+            if backup_path.endswith('.json'):
+                with open(backup_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+                profile_count = len(config.get('profiles', {}))
+                current_profile = config.get('current_profile', 'default')
+                return {
+                    'type': 'JSON',
+                    'profile_count': profile_count,
+                    'current_profile': current_profile
+                }
+            elif backup_path.endswith('.zip'):
+                return {'type': 'ZIP'}
+        except Exception:
+            pass
+        return None

@@ -53,7 +53,7 @@ class ActionExecutor:
     def get_date_long(self) -> str:
         """Текущая дата в длинном формате"""
         now = datetime.now()
-        return f"{now.day} {self._date_formats[now.month]} {now.year} года"
+        return f"{now.day} {self._date_formats[now.month]} {now.year}"
 
     def get_date_short(self) -> str:
         """Текущая дата в коротком формате"""

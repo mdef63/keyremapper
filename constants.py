@@ -9,7 +9,7 @@ CONFIG_FILE = "key_config.json"
 BACKUP_DIR = "backups"
 
 # Значения по умолчанию
-DEFAULT_TARGET_PROCESS = "Yandex"
+DEFAULT_TARGET_PROCESS = "browser.exe"
 DEFAULT_PROFILE = "default"
 
 # Интервалы проверок (секунды)
